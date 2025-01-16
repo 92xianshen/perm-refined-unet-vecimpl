@@ -1,9 +1,10 @@
-"""
-2024.01.15: 2D-index, failed and code removed.
-"""
+import time
 
 import numpy as np
 from sklearn.neighbors import KDTree
+
+import numba
+# import jax
 
 class Permutohedral:
     def __init__(self, N: np.int32, d: np.int32):
@@ -44,60 +45,86 @@ class Permutohedral:
         self.os, self.ws, self.blur_neighbors = None, None, None
 
     def init(self, feature):
-        # - Compute the simplex each feature lies in
-        # - !!! Shape of feature [N, d], i.e., channel-last
-        # - Elevate the feature (y = Ep, see p.5 in [Adams et al. 2010])
-        cf = feature * self.scale_factor[np.newaxis, :] # (N, d)
-        elevated = np.matmul(cf, self.E.T) # (N, d + 1)
+        """
+        2025.01.15: Libin initiate numba jit compilation, pause!!!
+        """
 
-        # - Find the closest 0-colored simplex through rounding
-        down_factor = np.float32(1.) / np.float32(self.d1)
-        up_factor = np.float32(self.d1)
-        v = down_factor * elevated # (N, d + 1)
-        up = np.ceil(v, dtype=np.float32) * up_factor # (N, d + 1)
-        down = np.floor(v, dtype=np.float32) * up_factor # (N, d + 1)
-        rem0 = np.where(up - elevated < elevated - down, up, down) # (N, d + 1)
-        sum_val = (rem0.sum(axis=1) * down_factor).astype(np.int32) # (N, )
+        @numba.jit
+        def compute_barycentric_and_keys(feature, N, d, d1, scale_factor, E, diff_valid, canonical):
+            # - Compute the simplex each feature lies in
+            # - !!! Shape of feature [N, d], i.e., channel-last
+            # - Elevate the feature (y = Ep, see p.5 in [Adams et al. 2010])
+            cf = feature * scale_factor[np.newaxis, :] # (N, d)
+            elevated = np.matmul(cf, E.T) # (N, d + 1)
 
-        # - Find the simplex we are in and store it in rank (where rank describes what position coordinate i has in the sorted order of the feature values)
-        rank = np.zeros((self.N, self.d1), dtype=np.int32) # (N, d + 1)
-        diff = elevated - rem0 # (N, d + 1)
-        di = diff[:, :, np.newaxis] # (N, d + 1, 1)
-        dj = diff[:, np.newaxis, :] # (N, 1, d + 1)
-        di_lt_dj = np.where(di < dj, 1, 0) # (N, d + 1, d + 1)
-        di_geq_dj = np.where(di >= dj, 1, 0) # (N, d + 1, d + 1)
-        rank += (di_lt_dj * self.diff_valid[np.newaxis, :, :]).sum(axis=2) # (N, d + 1)
-        rank += (di_geq_dj * self.diff_valid[np.newaxis, :, :]).sum(axis=1) # (N, d + 1)
+            # - Find the closest 0-colored simplex through rounding
+            down_factor = np.float32(1.) / np.float32(d1)
+            up_factor = np.float32(d1)
+            v = down_factor * elevated # (N, d + 1)
+            up = np.ceil(v) * up_factor # (N, d + 1)
+            down = np.floor(v) * up_factor # (N, d + 1)
+            rem0 = np.where(up - elevated < elevated - down, up, down) # (N, d + 1)
+            sum_val = (rem0.sum(axis=1) * down_factor).astype(np.int32) # (N, )
 
-        # - If the point doesn't lie on the plane (sum != 0) bring it back
-        rank += sum_val[:, np.newaxis] # (N, d + 1)
-        ls_zero = rank < 0
-        gt_d = rank > self.d
-        rank[ls_zero] += self.d1
-        rem0[ls_zero] += np.float32(self.d1)
-        rank[gt_d] -= self.d1
-        rem0[gt_d] -= np.float32(self.d1)
+            # - Find the simplex we are in and store it in rank (where rank describes what position coordinate i has in the sorted order of the feature values)
+            rank = np.zeros((N, d1), dtype=np.int32) # (N, d + 1)
+            diff = elevated - rem0 # (N, d + 1)
+            di = diff[:, :, np.newaxis] # (N, d + 1, 1)
+            dj = diff[:, np.newaxis, :] # (N, 1, d + 1)
+            di_lt_dj = np.where(di < dj, 1, 0) # (N, d + 1, d + 1)
+            di_geq_dj = np.where(di >= dj, 1, 0) # (N, d + 1, d + 1)
+            rank += (di_lt_dj * diff_valid[np.newaxis, :, :]).sum(axis=2) # (N, d + 1)
+            rank += (di_geq_dj * diff_valid[np.newaxis, :, :]).sum(axis=1) # (N, d + 1)
 
-        # - Compute the barycentric coordinates (p.10 in [Adams et al. 2010])
-        barycentric = np.zeros((self.N * (self.d + 2), ), dtype=np.float32) # (N * (d + 2), )
-        vs = ((elevated - rem0) * down_factor).reshape((-1, )) # (N * (d + 1), )
-        idx = ((self.d - rank) + np.arange(self.N)[:, np.newaxis] * (self.d + 2)).reshape((-1, )) # (N * (d + 1), )
-        idx1 = ((self.d - rank + 1) + np.arange(self.N)[:, np.newaxis] * (self.d + 2)).reshape((-1, )) # (N * (d + 1), )
-        barycentric[idx] += vs
-        barycentric[idx1] -= vs
-        barycentric = barycentric.reshape((self.N, self.d + 2)) # (N, d + 2)
-        barycentric[:, 0] += barycentric[:, self.d1] + np.float32(1.)
+            # - If the point doesn't lie on the plane (sum != 0) bring it back
+            rank += sum_val[:, np.newaxis] # (N, d + 1)
+            ls_zero = rank < 0
+            gt_d = rank > d
+            # rank[ls_zero] += self.d1
+            # rem0[ls_zero] += jnp.float32(self.d1)
+            # rank[gt_d] -= self.d1
+            # rem0[gt_d] -= jnp.float32(self.d1)
+            rank = np.where(ls_zero, rank + d1, rank)
+            rem0 = np.where(ls_zero, rem0 + np.float32(d1), rem0)
+            rank = np.where(gt_d, rank - d1, rank)
+            rem0 = np.where(gt_d, rem0 - np.float32(d1), rem0)
 
-        # - Compute all vertices and their offset
-        canonical_ext = np.transpose(self.canonical.T[rank], axes=(0, 2, 1)) # (N, d + 1, d + 1)
+            # - Compute the barycentric coordinates (p.10 in [Adams et al. 2010])
+            barycentric = np.zeros((N * (d + 2), ), dtype=np.float32) # (N * (d + 2), )
+            vs = ((elevated - rem0) * down_factor).reshape((-1, )) # (N * (d + 1), )
+            idx = ((d - rank) + np.arange(N)[:, np.newaxis] * (d + 2)).reshape((-1, )) # (N * (d + 1), )
+            idx1 = ((d - rank + 1) + np.arange(N)[:, np.newaxis] * (d + 2)).reshape((-1, )) # (N * (d + 1), )
+            barycentric[idx] += vs
+            barycentric[idx1] -= vs
+            barycentric = barycentric.reshape((N, d + 2)) # (N, d + 2)
+            barycentric[:, 0] += barycentric[:, d1] + np.float32(1.)
+            # barycentric = barycentric.at[idx].add(vs)
+            # barycentric = barycentric.at[idx1].subtract(vs)
+            # barycentric = barycentric.reshape((self.N, self.d + 2)) # (N, d + 2)
+            # barycentric = barycentric.at[:, 0].add(barycentric[:, self.d1] + np.float32(1.))
 
-        # - Get coordinate vector in lattice
-        keys = (rem0[:, np.newaxis, :self.d]).astype(np.int32) + canonical_ext[:, :, :self.d] # (N, d + 1, d)
-        keys = keys.reshape(((self.N * self.d1), self.d)) # (N * (d + 1), d)
+            # - Compute all vertices and their offset
+            canonicalT = np.transpose(canonical, axes=(1, 0))
+            canonical_ext = np.transpose(canonicalT[rank], axes=(0, 2, 1)) # (N, d + 1, d + 1)
+
+            # - Get coordinate vector in lattice
+            keys = (rem0[:, np.newaxis, :d]).astype(np.int32) + canonical_ext[:, :, :d] # (N, d + 1, d)
+            keys = keys.reshape(((N * d1), d)) # (N * (d + 1), d)
+
+            return barycentric, keys
+        
+        start = time.time()
+        barycentric, keys = compute_barycentric_and_keys(feature, self.N, self.d, self.d1, self.scale_factor, self.E, self.diff_valid, self.canonical)
         uniq_keys = np.unique(keys, axis=0) # (M, d), necessary, consider if the computation framework supports.
+        print("Time of key and bcentric gen:", time.time() - start)
 
+        start = time.time()
         kd_tree = KDTree(uniq_keys) # replacement of hash table, transforming keys of d dimensions to indices
+        print("Time of KD-tree building:", time.time() - start)
+
+        start = time.time()
         offsets = kd_tree.query(keys, return_distance=False) # (N * (d + 1), 1)
+        print("Time of key query:", time.time() - start)
 
         self.M = uniq_keys.shape[0]
 
@@ -114,14 +141,16 @@ class Permutohedral:
 
         self.blur_neighbors = np.zeros((self.M * self.d1, 2), dtype=np.int32) # (M * (d + 1), 2)
 
+        start = time.time()
         n1_dists, n1_inds = kd_tree.query(n1s) # (M * (d + 1), 1), (M * (d + 1), 1)
         self.blur_neighbors[:, 0] = np.where(np.isclose(n1_dists[:, 0], 0), n1_inds[:, 0], -1)
         n2_dists, n2_inds = kd_tree.query(n2s) # (M * (d + 1), 1), (M * (d + 1), 1)
         self.blur_neighbors[:, 1] = np.where(np.isclose(n2_dists[:, 0], 0), n2_inds[:, 0], -1)
+        print("Time of blur neighbor query:", time.time() - start)
 
         # Shift all values by 1 such that -1 -> 0 (used for blurring)
         self.os = offsets.reshape(-1) + 1 # (N * (d + 1), )
-        self.ws = barycentric[:, :self.d1].reshape((-1, )) # (N * (d + 1), )
+        self.ws = np.asarray(barycentric[:, :self.d1].reshape((-1, ))) # (N * (d + 1), )
         self.blur_neighbors = self.blur_neighbors.reshape((self.M, self.d1, 2)) + 1 # (M, d + 1, 2)
 
     def compute(self, inp, reverse=False):
