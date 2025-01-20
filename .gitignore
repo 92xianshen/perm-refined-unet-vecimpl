@@ -163,7 +163,6 @@ cython_debug/
 data/
 
 # Libin: codes for test and learn
-cpp/
 pymultiproc/
 试验代码/
 *参考*
@@ -193,6 +192,10 @@ checkpoint
 *.csv
 *.txt
 *.md
+*.html
+*.bat
+*.o
+*.exe
 
 *profile*/
 

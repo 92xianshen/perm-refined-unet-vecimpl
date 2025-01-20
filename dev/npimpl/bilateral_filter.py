@@ -7,7 +7,9 @@ import numpy as np
 # from permutohedral_jaximpl import Permutohedral
 # from permutohedral_nbopt import Permutohedral # for numba optimization
 
-from permutohedral_cython import Permutohedral
+# from permutohedral_cython import Permutohedral
+
+from permutohedral_npimpl import Permutohedral # import from pyd
 
 def bilateral_filter(value, image, theta_alpha, theta_beta):
     h, w, n_imchannels = image.shape

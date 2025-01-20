@@ -16,12 +16,14 @@ class Permutohedral:
         self.M: cython.int = 0
 
         self.canonical = np.zeros((d + 1, d + 1), dtype=np.int32) 
+        canonical_view: cython.int[:, ::1] = self.canonical
         i: cython.Py_ssize_t
         for i in range(d + 1):
-            self.canonical[i, :(d + 1 - i)] = i
-            self.canonical[i, (d + 1 - i):] = i - (d + 1)
+            canonical_view[i, :(d + 1 - i)] = i
+            canonical_view[i, (d + 1 - i):] = i - (d + 1)
 
         self.E = np.zeros((d + 1, d), dtype=np.float32)
+        # E_view: cython.float[:, ::1] = self.E
         self.E[:] = np.vstack([
             np.ones((d, ), dtype=np.float32), 
             np.diag(-np.arange(d, dtype=np.float32) - 2) + np.triu(np.ones((d, d), dtype=np.float32)), 
@@ -32,7 +34,8 @@ class Permutohedral:
 
         # Compute the diagonal part of E (p.5 in [Adams et al 2010])
         self.scale_factor = np.zeros((d, ), dtype=np.float32)
-        self.scale_factor[:] = 1. / np.sqrt((np.arange(d, dtype=np.float32) + 2) * (np.arange(d, dtype=np.float32) + 1)) * inv_std_dev # (d, )
+        # scale_factor_view: cython.float[::1] = self.scale_factor
+        self.scale_factor = 1. / np.sqrt((np.arange(d, dtype=np.float32) + 2) * (np.arange(d, dtype=np.float32) + 1)) * inv_std_dev # (d, )
 
         self.diff_valid = np.zeros((d + 1, d + 1), dtype=np.int32)
         self.diff_valid[:] = 1 - np.tril(np.ones((d + 1, d + 1), dtype=np.int32)) # (d + 1, d + 1)
@@ -53,9 +56,9 @@ class Permutohedral:
         # - Compute the simplex each feature lies in
         # - !!! Shape of feature [N, d], i.e., channel-last
         # - Elevate the feature (y = Ep, see p.5 in [Adams et al. 2010])
-        scale_factor_view: cython.float[:, :] = self.scale_factor[np.newaxis, :]
+        # scale_factor_view: cython.float[:, :] = self.scale_factor[np.newaxis, :]
         cf = feature * self.scale_factor[np.newaxis, :] # (N, d)
-        E_view: cython.float[:, :] = self.E
+        E_view: cython.float[:, ::1] = self.E
         elevated = np.matmul(cf, E_view.T) # (N, d + 1)
 
         # - Find the closest 0-colored simplex through rounding
@@ -69,13 +72,13 @@ class Permutohedral:
 
         # - Find the simplex we are in and store it in rank (where rank describes what position coordinate i has in the sorted order of the feature values)
         rank = np.zeros((self.N, self.d1), dtype=np.int32) # (N, d + 1)
-        rank_view: cython.int[:, :] = rank
+        rank_view: cython.int[:, ::1] = rank
         diff = elevated - rem0 # (N, d + 1)
         di = diff[:, :, np.newaxis] # (N, d + 1, 1)
         dj = diff[:, np.newaxis, :] # (N, 1, d + 1)
         di_lt_dj = np.where(di < dj, 1, 0) # (N, d + 1, d + 1)
         di_geq_dj = np.where(di >= dj, 1, 0) # (N, d + 1, d + 1)
-        diff_valid_view: cython.int[:, :, :] = self.diff_valid[np.newaxis, :, :]
+        diff_valid_view: cython.int[:, :, ::1] = self.diff_valid[np.newaxis, :, :]
         rank_view += (di_lt_dj * diff_valid_view).sum(axis=2) # (N, d + 1)
         rank_view += (di_geq_dj * diff_valid_view).sum(axis=1) # (N, d + 1)
 
@@ -120,15 +123,15 @@ class Permutohedral:
         # - For each of d+1 axes,
         n1s = np.repeat(uniq_keys[:, np.newaxis, :], repeats=self.d1, axis=1) - 1 # (M, d + 1, d)
         n2s = np.repeat(uniq_keys[:, np.newaxis, :], repeats=self.d1, axis=1) + 1 # (M, d + 1, d)
-        dI_view: cython.int[:, :, :] = self.dI[np.newaxis, :, :]
-        I_view: cython.int[:, :, :] = self.I[np.newaxis, :, :]
+        # dI_view: cython.int[:, :, :] = self.dI[np.newaxis, :, :]
+        # I_view: cython.int[:, :, :] = self.I[np.newaxis, :, :]
         n1s += (self.dI[np.newaxis, :, :self.d] + self.I[np.newaxis, :, :self.d]) # (M, d + 1, d)
         n2s -= (self.dI[np.newaxis, :, :self.d] + self.I[np.newaxis, :, :self.d]) # (M, d + 1, d)
         n1s = n1s.reshape((self.M * self.d1, self.d)) # (M * (d + 1), d)
         n2s = n2s.reshape((self.M * self.d1, self.d)) # (M * (d + 1), d)
 
         self.blur_neighbors = np.zeros((self.M * self.d1, 2), dtype=np.int32) # (M * (d + 1), 2)
-        blur_neighbors_view: cython.int[:, :] = self.blur_neighbors
+        # blur_neighbors_view: cython.int[:, :] = self.blur_neighbors
 
         n1_dists, n1_inds = kd_tree.query(n1s) # (M * (d + 1), 1), (M * (d + 1), 1)
         self.blur_neighbors[:, 0] = np.where(np.isclose(n1_dists[:, 0], 0), n1_inds[:, 0], -1)
@@ -149,9 +152,9 @@ class Permutohedral:
         value = np.zeros((self.M + 2, value_size), dtype=np.float32)
         # value_view: cython.float[:, :] = value
 
-        os_view: cython.int[:] = self.os
-        ws_view: cython.float[:] = self.ws
-        ws_view2: cython.float[:, :] = self.ws[:, np.newaxis]
+        os_view: cython.int[::1] = self.os
+        ws_view: cython.float[::1] = self.ws
+        ws_view2: cython.float[:, ::1] = self.ws[:, np.newaxis]
 
         # - Splat
         v: cython.Py_ssize_t

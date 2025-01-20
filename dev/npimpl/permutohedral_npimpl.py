@@ -74,9 +74,9 @@ class Permutohedral:
         ls_zero = rank < 0
         gt_d = rank > self.d
         rank[ls_zero] += self.d1
-        rem0[ls_zero] += np.float32(self.d1)
+        rem0[ls_zero] += self.d1
         rank[gt_d] -= self.d1
-        rem0[gt_d] -= np.float32(self.d1)
+        rem0[gt_d] -= self.d1
 
         # - Compute the barycentric coordinates (p.10 in [Adams et al. 2010])
         barycentric = np.zeros((self.N * (self.d + 2), ), dtype=np.float32) # (N * (d + 2), )
