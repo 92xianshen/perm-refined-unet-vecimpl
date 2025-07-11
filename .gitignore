@@ -187,6 +187,7 @@ checkpoint
 *.index
 *.npz
 *.png
+*.jpg
 *.xlsx
 *.xls
 *.csv
