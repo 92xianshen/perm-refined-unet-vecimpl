@@ -17,9 +17,11 @@ from utils.linear2percentile_util import linear_2_percent_stretch
 from config.config import Config
 
 
-def main():
+def main(logname):
     # ->> Instantiate config entity
     config = Config()
+    if logname:
+        config.save_info_fname = logname
 
     # ->> Output all attributes of the current config entity
     pprint.pprint(config.__dict__)
@@ -148,4 +150,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    for i in range(10):
+        logname = "log{:03}.csv".format(i + 1)
+        main(logname)

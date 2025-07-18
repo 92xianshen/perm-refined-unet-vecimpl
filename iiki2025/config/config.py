@@ -2,6 +2,11 @@
 Experimental configuration.
 
 Experiments
+    0. Trick
+        0.1 version = "original"
+        0.2 version = "noif"
+        0.3 version = "norm"
+        0.4 version = "noeigen"
     1. Hyperparameter test.
         1.1 theta_beta = 0.03125 with theta_alpha = 120.0 (4), 80.0 (1), 40.0 (2), 10.0 (3).
         1.2 theta_alpha = 80.0 with theta_beta = 0.03125 (1), 0.0625 (2), 0.125 (3), 0.25 (4).
@@ -18,16 +23,22 @@ Default:
 import sys
 import importlib
 
+
 class Config:
     def __init__(self) -> None:
         # ==> for module name and output, CRITICAL
-        self.version = "noeigen"
+        self.version = ["original", "noif", "norm", "noeigen"][3]
+        self.branch = "iiki2025"
 
         # ==> Hyperparameters, v1
         # self.theta_alpha, self.theta_beta, self.theta_gamma = 80.0, 0.03125, 3.0 # critical hyperparameters
         # ==> setting v2
-        self.theta_alpha = [80.0, 40.0, 10.0, 120.0][0]  # 80.0, 40.0, 10.0, 120.0 with default theta_alpha=0.03125
-        self.theta_beta = [0.03125, 0.0625, 0.125, 0.25][0]  # 0.03125, 0.0625, 0.125, 0.25 with default theta_alpha=80.0
+        self.theta_alpha = [80.0, 40.0, 10.0, 120.0][
+            0
+        ]  # 80.0, 40.0, 10.0, 120.0 with default theta_alpha=0.03125
+        self.theta_beta = [0.03125, 0.0625, 0.125, 0.25][
+            0
+        ]  # 0.03125, 0.0625, 0.125, 0.25 with default theta_alpha=80.0
         self.theta_gamma = 3.0
 
         # ==> v1
@@ -47,7 +58,8 @@ class Config:
         # - Input and output
         self.data_path = "E:/Research/experiment_data/{}/testcase".format(self.dataset)
         # self.save_path = "../output/a={}, b={}, r={}".format(self.theta_alpha, self.theta_beta, self.theta_gamma) # Perm. RFN. UNet
-        self.save_path = "E:/Research/experiment_results/efficient_glob_perm_rfn_unet/{}/{}/{}/a={}, b={}, r={}".format(
+        self.save_path = "E:/Research/experiment_results/efficient_glob_perm_rfn_unet/{}/{}/{}/{}/a={}, b={}, r={}".format(
+            self.branch, 
             self.version,
             self.dataset,
             self.channels,
@@ -71,4 +83,6 @@ class Config:
         self.n_iterations = 10
 
         sys.path.append("..")
-        self.module = importlib.import_module("model.{}.pydensecrf".format(self.version))
+        self.module = importlib.import_module(
+            "model.{}.pydensecrf".format(self.version)
+        )
