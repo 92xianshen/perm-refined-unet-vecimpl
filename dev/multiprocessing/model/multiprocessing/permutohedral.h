@@ -28,6 +28,7 @@
 // final version, public available at github (OA)
 
 // 2025.05.14 try to remove if
+// 2025.07.31 try multi-processing
 
 #include <iostream>
 #include <stdbool.h>
@@ -116,15 +117,13 @@ class HashTable {
 
 class Permutohedral {
   public:
-    int N_ = 0, d_ = 0, d1_ = 0, M_ = 0, Nfilled_ = 0;
+    int N_ = 0, d_ = 0, d1_ = 0, M_ = 0;
     float alpha_ = 0.f;
 
     int *os_;
     float *ws_;
 
     int *blur_neighbors_;
-
-    HashTable *table_;
 
   public:
     Permutohedral(int N, int d) {
@@ -136,15 +135,14 @@ class Permutohedral {
         // Slicing
         alpha_ = 1.f / (1 + powf(2, -d_));
 
-        os_ = new int[N_ * d1_];   // channel-last
+        os_ = new int[N_ * d1_]; // channel-last
         ws_ = new float[N_ * d1_]; // channel-last
-
-        table_ = new HashTable(d_, N_ * d1_);
     }
 
     void init(const float *feature) {
         // Compute the lattice coordinates for each feature [there is going to
         // be a lot of magic here]
+        HashTable hash_table(d_, N_ * d1_);
 
         // Allocate local memories
         float *elevated = new float[d1_];
@@ -197,10 +195,10 @@ class Permutohedral {
                 float v = down_factor * elevated[i];
                 float up = ceilf(v) * up_factor;
                 float down = floorf(v) * up_factor;
-
+                
                 short cond = (up - elevated[i] < elevated[i] - down);
-                rd2 = (short)up * cond + (short)down * (1 - cond);
-
+                rd2 = (short)up * cond + (short)down * (1 - cond); 
+                
                 rem0[i] = rd2;
                 sum += rd2 * down_factor;
             }
@@ -212,8 +210,7 @@ class Permutohedral {
             for (int i = 0; i < d_; i++) {
                 double di = elevated[i] - rem0[i];
                 for (int j = i + 1; j < d1_; j++) {
-                    short cond =
-                        (elevated[i] - rem0[i]) < (elevated[j] - rem0[j]);
+                    short cond = (elevated[i] - rem0[i]) < (elevated[j] - rem0[j]);
                     rank[i] += 1 * cond;
                     rank[j] += 1 * (1 - cond);
                 }
@@ -243,10 +240,11 @@ class Permutohedral {
             // Compute all vertices and their offset
             for (int remainder = 0; remainder < d1_; remainder++) {
                 for (int i = 0; i < d_; i++) {
-                    key[i] = rem0[i] + canonical[remainder * d1_ + rank[i]];
+                    key[i] =
+                        rem0[i] + canonical[remainder * d1_ + rank[i]];
                 }
 
-                os_[n * d1_ + remainder] = table_->find(key, true) + 1;
+                os_[n * d1_ + remainder] = hash_table.find(key, true) + 1;
                 ws_[n * d1_ + remainder] = barycentric[remainder];
             }
         }
@@ -263,7 +261,7 @@ class Permutohedral {
         // Find the neighbors of each lattice point
 
         // Get the number of vertices in the lattice
-        M_ = table_->size();
+        M_ = hash_table.size();
 
         blur_neighbors_ = new int[d1_ * M_ * 2];
 
@@ -273,7 +271,7 @@ class Permutohedral {
         // For each of d + 1 axes,
         for (int j = 0; j < d1_; j++) {
             for (int i = 0; i < M_; i++) {
-                const short *key = table_->getKey(i);
+                const short *key = hash_table.getKey(i);
 
                 for (int k = 0; k < d_; k++) {
                     n1[k] = key[k] - 1;
@@ -282,64 +280,16 @@ class Permutohedral {
                 n1[j] = key[j] + d_;
                 n2[j] = key[j] - d_;
 
-                blur_neighbors_[j * M_ * 2 + i * 2 + 0] =
-                    table_->find(n1) + 1;
-                blur_neighbors_[j * M_ * 2 + i * 2 + 1] =
-                    table_->find(n2) + 1;
+                blur_neighbors_[j * M_ * 2 + i * 2 + 0] = hash_table.find(n1) + 1;
+                blur_neighbors_[j * M_ * 2 + i * 2 + 1] = hash_table.find(n2) + 1;
             }
         }
 
         delete[] n1;
         delete[] n2;
-        table_->reset();
     }
 
-    void init_plattice(const short *pkey, const float *pbarycentric, int pN) {
-        // pkey shape: [pN x (d + 1) x d], pbarycentric shape: [pN x (d + 2)]
-        int *os = os_ + Nfilled_ * d1_;
-        float *ws = ws_ + Nfilled_ * d1_;
-        for (int n = 0; n < pN; n++) {
-            for (int remainder = 0; remainder < d1_; remainder++) {
-                os[n * d1_ + remainder] = table_->find(pkey + (n * d1_ + remainder) * d_, true) + 1;
-                ws[n * d1_ + remainder] = pbarycentric[n * (d_ + 2) + remainder];
-            }
-        }
-        Nfilled_ += pN;
-    }
-
-    void init_blurneighbors() {
-        // Get the number of vertices in the lattice
-        M_ = table_->size();
-
-        blur_neighbors_ = new int[d1_ * M_ * 2];
-
-        short *n1 = new short[d1_];
-        short *n2 = new short[d1_];
-
-        // For each of d + 1 axes,
-        for (int j = 0; j < d1_; j++) {
-            for (int i = 0; i < M_; i++) {
-                const short *key = table_->getKey(i);
-
-                for (int k = 0; k < d_; k++) {
-                    n1[k] = key[k] - 1;
-                    n2[k] = key[k] + 1;
-                }
-                n1[j] = key[j] + d_;
-                n2[j] = key[j] - d_;
-
-                blur_neighbors_[j * M_ * 2 + i * 2 + 0] = table_->find(n1) + 1;
-                blur_neighbors_[j * M_ * 2 + i * 2 + 1] = table_->find(n2) + 1;
-            }
-        }
-
-        delete[] n1;
-        delete[] n2;
-        table_->reset();
-    }
-
-    void compute(const float *inp, const int value_size, const bool reversal,
-                 float *out) {
+    void compute(const float *inp, const int value_size, const bool reversal, float *out) {
         float *value = new float[(M_ + 2) * value_size];
         float *buffer = new float[(M_ + 2) * value_size];
         fill(value, value + (M_ + 2) * value_size, 0.f);
@@ -364,10 +314,7 @@ class Permutohedral {
                 int n1 = blur_neighbors_[j * M_ * 2 + i * 2 + 0];
                 int n2 = blur_neighbors_[j * M_ * 2 + i * 2 + 1];
                 for (int v = 0; v < value_size; v++) {
-                    buffer[(i + 1) * value_size + v] =
-                        value[(i + 1) * value_size + v] +
-                        0.5 * (value[n1 * value_size + v] +
-                               value[n2 * value_size + v]);
+                    buffer[(i + 1) * value_size + v] = value[(i + 1) * value_size + v] + 0.5 * (value[n1 * value_size + v] + value[n2 * value_size + v]);
                 }
             }
 
@@ -384,8 +331,7 @@ class Permutohedral {
                 int o = os_[i * d1_ + j];
                 float w = ws_[i * d1_ + j];
                 for (int v = 0; v < value_size; v++) {
-                    out[i * value_size + v] +=
-                        w * value[o * value_size + v] * alpha_;
+                    out[i * value_size + v] += w * value[o * value_size + v] * alpha_;
                 }
             }
         }
@@ -397,7 +343,6 @@ class Permutohedral {
     ~Permutohedral() {
         delete[] os_;
         delete[] ws_;
-        delete[] blur_neighbors_;
-        delete table_;
+        delete[] blur_neighbors_; 
     }
 };

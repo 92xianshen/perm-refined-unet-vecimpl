@@ -27,7 +27,7 @@ import importlib
 class Config:
     def __init__(self) -> None:
         # ==> for module name and output, CRITICAL
-        self.version = ["original", "noif", "norm", "noeigen", "hybrid"][4]
+        self.version = ["original", "noif", "norm", "noeigen", "hybrid", "hybridv2"][5]
         self.branch = "iiki2025"
 
         # ==> Hyperparameters, v1
@@ -84,5 +84,5 @@ class Config:
 
         sys.path.append("..")
         self.module = importlib.import_module(
-            "model.{}.pydensecrf".format(self.version)
+            "model.{}.dcrf_inference".format(self.version)
         )

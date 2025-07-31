@@ -16,7 +16,7 @@ from utils.linear2percentile_util import linear_2_percent_stretch
 # from model.pydensecrf_noeigen import PyDenseCRF
 from config.config import Config
 
-iterations = 10
+iterations = 1
 
 def main(logname):
     # ->> Instantiate config entity
@@ -101,7 +101,7 @@ def main(logname):
             d_spfeats = d_spatial
 
             # Create DCRF
-            dcrf = config.module.PyDenseCRF(
+            dcrf = config.module.DCRFInference(
                 H=height,
                 W=width,
                 n_classes=config.n_classes,
@@ -121,7 +121,7 @@ def main(logname):
             image1d = image.reshape((-1,))
             out1d = np.zeros_like(unary1d, dtype=np.float32)
 
-            dcrf.inference(unary1d, image1d, out1d)
+            dcrf.run(unary1d, image1d, out1d)
             out = out1d.reshape((height, width, config.n_classes))
             refinement = np.argmax(out, axis=-1)
 

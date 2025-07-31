@@ -116,7 +116,7 @@ class HashTable {
 
 class Permutohedral {
   public:
-    int N_ = 0, d_ = 0, d1_ = 0, M_ = 0, Nfilled_ = 0;
+    int N_ = 0, H_ = 0, W_ = 0, d_ = 0, d1_ = 0, M_ = 0, Nfilled_ = 0;
     float alpha_ = 0.f;
 
     int *os_;
@@ -127,8 +127,10 @@ class Permutohedral {
     HashTable *table_;
 
   public:
-    Permutohedral(int N, int d) {
-        N_ = N;
+    Permutohedral(int H, int W, int d) {
+        H_ = H;
+        W_ = W;
+        N_ = H * W;
         d_ = d;
 
         d1_ = d + 1;
@@ -142,7 +144,10 @@ class Permutohedral {
         table_ = new HashTable(d_, N_ * d1_);
     }
 
-    void init(const float *feature) {
+    void init(const float *reference) {
+        // 2025.07.30 feature ==> reference
+        // reference: 1d, H x W x n_channels, 
+
         // Compute the lattice coordinates for each feature [there is going to
         // be a lot of magic here]
 
@@ -154,6 +159,7 @@ class Permutohedral {
         short *key = new short[d_];
         short *canonical = new short[d1_ * d1_];
         float *scale_factor = new float[d_];
+        float *feature = new float[d_];
 
         // Compute the canonical simplex
         for (int i = 0; i < d1_; i++) {
@@ -176,6 +182,14 @@ class Permutohedral {
 
         // Compute the simplex each feature lies in
         for (int n = 0; n < N_; n++) {
+        for (int y = 0; y < H_; y++) {
+            for (int x = 0; x < W_; x++) {
+                feature[0] = (float)x / 
+                for (int i = 0; i < d_; i++) {
+                    feature[0]
+                }
+            }
+        }
             // Elevate the feature (y = Ep, see p.5 in [Adams et al., 2010])
             const float *f = &feature[n * d_];
 
@@ -259,6 +273,7 @@ class Permutohedral {
         delete[] key;
         delete[] canonical;
         delete[] scale_factor;
+        delete[] feature
 
         // Find the neighbors of each lattice point
 
