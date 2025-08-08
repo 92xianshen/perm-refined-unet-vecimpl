@@ -16,7 +16,7 @@ from utils.linear2percentile_util import linear_2_percent_stretch
 # from model.pydensecrf_noeigen import PyDenseCRF
 from config.config import Config
 
-iterations = 1
+iterations = 10
 
 def main(logname):
     # ->> Instantiate config entity

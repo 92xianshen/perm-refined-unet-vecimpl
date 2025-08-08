@@ -40,7 +40,8 @@ class Config:
             "multiprocessingv2",
             "cppthread",
             "cppthreadv2",
-        ][8]
+            "cppthreadv3", 
+        ][9]
         self.n_thread = [2, 4, 8, 16, 32][4]
         self.branch = "iiki2025"
 
@@ -72,19 +73,7 @@ class Config:
         # !!! == Input and output, must be checked ==
         self.data_path = "E:/Research/experiment_data/{}/testcase".format(self.dataset)
         # self.save_path = "../output/a={}, b={}, r={}".format(self.theta_alpha, self.theta_beta, self.theta_gamma) # Perm. RFN. UNet
-        # self.save_path = "E:/Research/experiment_results/efficient_glob_perm_rfn_unet/{}/{}/{}/{}/{}/a={}, b={}, r={}".format(
-        #     self.branch,
-        #     self.version,
-        #     self.dataset,
-        #     self.channels,
-        #     self.n_thread,
-        #     self.theta_alpha,
-        #     self.theta_beta,
-        #     self.theta_gamma,
-        # )  # Perm. RFN. UNet w/o bilateral message-passing step
-
-        # For code validate
-        self.save_path = "./{}/{}/{}/{}/{}/a={}, b={}, r={}".format(
+        self.save_path = "E:/Research/experiment_results/efficient_glob_perm_rfn_unet/{}/{}/{}/{}/{}/a={}, b={}, r={}".format(
             self.branch,
             self.version,
             self.dataset,
@@ -93,7 +82,19 @@ class Config:
             self.theta_alpha,
             self.theta_beta,
             self.theta_gamma,
-        )
+        )  # Perm. RFN. UNet w/o bilateral message-passing step
+
+        # For code validate
+        # self.save_path = "./{}/{}/{}/{}/{}/a={}, b={}, r={}".format(
+        #     self.branch,
+        #     self.version,
+        #     self.dataset,
+        #     self.channels,
+        #     self.n_thread,
+        #     self.theta_alpha,
+        #     self.theta_beta,
+        #     self.theta_gamma,
+        # )
         self.save_info_fname = "log.csv"
 
         # # ==> repeat number for test
